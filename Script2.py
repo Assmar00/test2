@@ -113,14 +113,9 @@ canvas.place(relx=0, rely=0, relwidth=1, relheight=1)
 
 starfield = Starfield(canvas, 500, 480)
 
-logo_path = 'logo.png'
-try:
-    logo_image = Image.open(logo_path).resize((100, 100))
-    logo_photo = ImageTk.PhotoImage(logo_image)
-    logo_label = tk.Label(app, image=logo_photo, bg='#1e1e1e')
-    logo_label.place(relx=0.5, rely=0.05, anchor='n')
-except FileNotFoundError:
-    print('Logo-Bild nicht gefunden:', logo_path)
+# Einfacher Text als Logo-Ersatz
+logo_label = tk.Label(app, text="Assmar00", font=("Arial", 24, "bold"), fg="white", bg="#1e1e1e")
+logo_label.place(relx=0.5, rely=0.05, anchor='n')
 
 main_frame = ctk.CTkFrame(app, fg_color='transparent')
 main_frame.place(relx=0.5, rely=0.5, anchor='center')
