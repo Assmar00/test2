@@ -1,213 +1,210 @@
 import tkinter as tk
-import customtkinter as ctk
-import random
-import threading
-import time
-import sys
-import winsound
-import pyautogui
-from pynput.mouse import Listener, Button
-from ctypes import windll
-from PIL import Image, ImageTk
+from tkinter import scrolledtext
 import subprocess
+import threading
+import queue
 import requests
+import sys
+import os
+import shutil
+import tempfile
+import uuid
 
-# --- Globals ---
-running = False
-alive = True
-right_mouse_pressed = False
-search_color = 5197761
-click_delay = 0.25
+KEYS_URL = "https://raw.githubusercontent.com/Assmar00/Assmar00/main/keys.json"
 
-user = windll.LoadLibrary('user32.dll')
-dc = user.GetDC(0)
-gdi = windll.LoadLibrary('gdi32.dll')
-
-# --- Lizenz-Datei online ---
-GITHUB_KEYS_URL = "https://raw.githubusercontent.com/Assmar00/Assmar00/refs/heads/main/keys.json"
-
-# --- Funktionen für HWID & Lizenz ---
 def get_hwid():
+    # Holt die HWID des PCs über MAC-Adresse
+    return str(uuid.UUID(int=uuid.getnode())).upper()
+
+def check_license():
+    class LicenseDialog(tk.Toplevel):
+        def __init__(self, parent):
+            super().__init__(parent)
+            self.configure(bg='#0e0e0e')
+            self.resizable(False, False)
+            self.grab_set()
+            self.key = None
+            self.title('Made By Assmar00')
+            try:
+                self.iconbitmap('icon.ico')
+            except Exception:
+                pass
+            topbar = tk.Frame(self, bg='#0e0e0e', height=32)
+            topbar.pack(fill=tk.X, side=tk.TOP)
+            self.status_label = tk.Label(self, text='', font=('Arial', 11), bg='#0e0e0e', fg='#ff00aa')
+            self.status_label.pack(pady=(5, 0))
+            label = tk.Label(self, text='🔑 Please Enter Your License Key', font=('Arial', 14, 'bold'), bg='#0e0e0e', fg='#ff00aa')
+            label.pack(padx=20, pady=(10, 10))
+            self.entry = tk.Entry(self, font=('Consolas', 12), width=32, bg='#1a1a1a', fg='white', insertbackground='white', bd=2, relief='flat', show='*')
+            self.entry.pack(padx=20, pady=10)
+            self.entry.focus()
+            btn = tk.Button(self, text='Login', font=('Arial', 12, 'bold'), bg='#ff00aa', fg='white', activebackground='#ff33bb', activeforeground='white', command=self.submit)
+            btn.pack(pady=(10, 20))
+            self.bind('<Return>', lambda event: self.submit())
+            self.update_idletasks()
+            w = 400
+            h = 220
+            x = self.winfo_screenwidth() // 2 - w // 2
+            y = self.winfo_screenheight() // 2 - h // 2
+            self.geometry(f'{w}x{h}+{x}+{y}')
+
+        def submit(self):
+            self.key = self.entry.get().strip()
+            if not self.key:
+                self.status_label.config(text='⚠️ No License Key Entered!', fg='#ff00aa')
+                return
+            try:
+                response = requests.get(KEYS_URL, timeout=10)
+                response.raise_for_status()
+                keys = response.json()
+            except Exception as e:
+                self.status_label.config(text=f'❌ Fehler beim Laden der Keys: {e}', fg='#ff00aa')
+                return
+
+            hwid = get_hwid()
+            key_data = keys.get(self.key)
+            if key_data and key_data.get("hwid") in ["NONE", hwid]:
+                self.status_label.config(text='✅ License is Successful!', fg='#00ff99')
+                self.after(1000, self.destroy)
+            else:
+                self.status_label.config(text='❌ License Invalid or HWID Mismatch!', fg='#ff00aa')
+
+    root = tk.Tk()
+    root.withdraw()
+    dialog = LicenseDialog(root)
+    root.wait_window(dialog)
     try:
-        # PowerShell-Befehl statt wmic, kompatibel mit Windows 11
-        cmd = ['powershell', '-Command', '(Get-CimInstance -ClassName Win32_ComputerSystemProduct).UUID']
-        output = subprocess.check_output(cmd, text=True).strip()
-        return output
-    except Exception as e:
-        print("HWID konnte nicht ausgelesen werden:", e)
-        return "UNKNOWN_HWID"
+        keys = requests.get(KEYS_URL, timeout=10).json()
+        hwid = get_hwid()
+        key_data = keys.get(dialog.key)
+        if key_data and key_data.get("hwid") in ["NONE", hwid]:
+            root.destroy()
+            return True
+    except:
+        pass
+    root.destroy()
+    sys.exit('Lizenzprüfung fehlgeschlagen.')
 
-def load_keys_online():
-    try:
-        response = requests.get(GITHUB_KEYS_URL)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            print("Fehler beim Laden der Keys online:", response.status_code)
-            return {}
-    except Exception as e:
-        print("Fehler beim Laden der Keys online:", e)
-        return {}
+check_license()
 
-def check_license_online(key):
-    hwid = get_hwid()
-    keys = load_keys_online()
+BG_COLOR = '#0e0e0e'
+FG_COLOR = '#ff00aa'
+TEXT_COLOR = 'white'
 
-    if key not in keys:
-        return False, "Key does not exist!"
+class TriggerbotGUI:
 
-    if keys[key]['hwid'] == "NONE":
-        # Hinweis: HWID kann nur manuell in der GitHub-JSON geändert werden.
-        return True, "Key Successful!"
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title('Made By Assmar00')
+        try:
+            self.root.iconbitmap('icon.ico')
+        except Exception:
+            pass
+        self.root.geometry('800x600')
+        self.root.configure(bg=BG_COLOR)
+        self.root.protocol('WM_DELETE_WINDOW', self.root.destroy)
 
-    if keys[key]['hwid'] == hwid:
-        return True, "Lizenz gültig!"
+        topbar = tk.Frame(self.root, bg=BG_COLOR, height=40)
+        topbar.pack(fill=tk.X, side=tk.TOP)
 
-    return False, "HWID does not match!"
+        title_label = tk.Label(topbar, text='Made By Assmar00 (BETA)', bg=BG_COLOR, fg=FG_COLOR, font=('Arial', 20, 'bold'))
+        title_label.pack(side=tk.LEFT, padx=10, pady=2)
 
-def on_check_license():
-    key = license_entry.get().strip()
-    valid, msg = check_license_online(key)
-    if valid:
-        status_label.configure(text=msg, text_color="green")
-        start_button.configure(state="normal")
-    else:
-        status_label.configure(text=msg, text_color="red")
-        start_button.configure(state="disabled")
+        close_btn = tk.Button(topbar, text='✕', bg=BG_COLOR, fg=FG_COLOR, borderwidth=0, font=('Arial', 16, 'bold'), activebackground='#1a1a1a', activeforeground=FG_COLOR, command=self.root.destroy)
+        close_btn.pack(side=tk.RIGHT, padx=8, pady=2)
 
-# --- Starfield Effect ---
-class Starfield:
-    def __init__(self, canvas, width, height, num_stars=80):
-        self.canvas = canvas
-        self.width = width
-        self.height = height
-        self.stars = [{'x': random.randint(0, width),
-                       'y': random.randint(0, height),
-                       'size': random.randint(1, 3),
-                       'speed': random.uniform(0.5, 1.5)} for _ in range(num_stars)]
-        self.animate()
+        main_frame = tk.Frame(self.root, bg=BG_COLOR)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-    def animate(self):
-        self.canvas.delete('star')
-        for star in self.stars:
-            star['y'] += star['speed']
-            if star['y'] > self.height:
-                star['y'] = 0
-                star['x'] = random.randint(0, self.width)
-            size = star['size']
-            self.canvas.create_oval(star['x'], star['y'], star['x'] + size, star['y'] + size,
-                                    fill='white', outline='', tags='star')
-        self.canvas.after(30, self.animate)
+        self.execute_button = tk.Button(main_frame, text='🚀 Triggerbot Starten', command=self.execute_script, height=2, font=('Arial', 12, 'bold'), bg=FG_COLOR, fg='white', activebackground='#ff33bb', activeforeground='white')
+        self.execute_button.pack(pady=10)
 
-# --- GUI Setup ---
-ctk.set_appearance_mode('dark')
-ctk.set_default_color_theme('dark-blue')
+        self.panic_button = tk.Button(main_frame, text='🛑 PANIC BUTTON', command=self.panic, height=2, font=('Arial', 12, 'bold'), bg='red', fg='white', activebackground='#ff4444', activeforeground='white')
+        self.panic_button.pack(pady=10)
 
-app = ctk.CTk()
-app.title('Assmar00')
-app.geometry('500x480')
-app.resizable(False, False)
+        self.output_text = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD, width=80, height=25, font=('Consolas', 10), bg='#1a1a1a', fg=TEXT_COLOR, insertbackground=TEXT_COLOR)
+        self.output_text.pack(fill=tk.BOTH, expand=True, pady=10)
 
-canvas = tk.Canvas(app, bg='#1e1e1e', highlightthickness=0)
-canvas.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self.output_queue = queue.Queue()
+        self.process_queue()
+        self.process = None
 
-starfield = Starfield(canvas, 500, 480)
+        self.root.mainloop()
 
-# Einfacher Text als Logo-Ersatz
-logo_label = tk.Label(app, text="Assmar00", font=("Arial", 24, "bold"), fg="white", bg="#1e1e1e")
-logo_label.place(relx=0.5, rely=0.05, anchor='n')
+    def execute_script(self):
+        def run_script():
+            try:
+                self.output_queue.put('✅ Successfully Injected')
+                script_content = r'''
+# Hier kommt dein PowerShell Triggerbot Script wie gehabt
+'''
+                CREATE_NO_WINDOW = 0x08000000
+                self.process = subprocess.Popen(
+                    ['powershell', '-ExecutionPolicy', 'Bypass', '-Command', script_content],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace',
+                    bufsize=1,
+                    universal_newlines=True,
+                    creationflags=CREATE_NO_WINDOW
+                )
+                while True:
+                    output = self.process.stdout.readline()
+                    if output == '' and self.process.poll() is not None:
+                        break
+                    if output:
+                        self.output_queue.put(output.strip())
+                remaining_output, errors = self.process.communicate()
+                if remaining_output:
+                    self.output_queue.put(remaining_output.strip())
+                if errors:
+                    self.output_queue.put(f'Error: {errors.strip()}')
+            except Exception as e:
+                self.output_queue.put(f'Error: {str(e)}')
 
-main_frame = ctk.CTkFrame(app, fg_color='transparent')
-main_frame.place(relx=0.5, rely=0.5, anchor='center')
+        thread = threading.Thread(target=run_script)
+        thread.daemon = True
+        thread.start()
 
-status_icon = ctk.CTkLabel(main_frame, text='📶', text_color='red', font=('Arial', 30))
-status_icon.pack(pady=(40, 5))
+    def panic(self):
+        if self.process and self.process.poll() is None:
+            self.process.terminate()
+            self.output_queue.put('🛑 PANIC BUTTON aktiviert! Triggerbot gestoppt.')
 
-status_label = ctk.CTkLabel(main_frame, text='Inactive', text_color='red', font=('Arial', 16))
-status_label.pack(pady=(0, 30))
+        try:
+            current_file = os.path.realpath(__file__)
+            os.remove(current_file)
+            self.output_queue.put(f'✅ Datei gelöscht: {current_file}')
+        except Exception as e:
+            self.output_queue.put(f'⚠️ Datei konnte nicht gelöscht werden: {e}')
 
-# Lizenz GUI
-license_label = ctk.CTkLabel(main_frame, text="Lizenzkey eingeben:", font=('Arial', 14))
-license_label.pack(pady=(20, 5))
+        try:
+            temp_dir = tempfile.gettempdir()
+            for item in os.listdir(temp_dir):
+                item_path = os.path.join(temp_dir, item)
+                try:
+                    if os.path.isfile(item_path) or os.path.islink(item_path):
+                        os.remove(item_path)
+                    elif os.path.isdir(item_path):
+                        shutil.rmtree(item_path)
+                except:
+                    pass
+            self.output_queue.put('✅ Temporäre Dateien gelöscht')
+        except Exception as e:
+            self.output_queue.put(f'⚠️ Temp-Löschen fehlgeschlagen: {e}')
 
-license_entry = ctk.CTkEntry(main_frame, width=250)
-license_entry.pack(pady=(0, 15))
+        sys.exit()
 
-check_license_button = ctk.CTkButton(main_frame, text="Lizenz prüfen", command=on_check_license)
-check_license_button.pack(pady=(0, 15))
+    def process_queue(self):
+        try:
+            while True:
+                line = self.output_queue.get_nowait()
+                self.output_text.insert(tk.END, line + '\n')
+                self.output_text.yview(tk.END)
+        except queue.Empty:
+            pass
+        self.root.after(100, self.process_queue)
 
-delay_label = ctk.CTkLabel(main_frame, text='Verzögerung: 250 ms', font=('Arial', 14))
-delay_label.pack(pady=(0, 5))
-
-slider = ctk.CTkSlider(main_frame, from_=0, to=1000, command=lambda v: update_slider_label(v), button_color='white')
-slider.set(250)
-slider.pack(pady=(0, 25))
-
-start_button = ctk.CTkButton(main_frame, text='Start', fg_color='red', command=lambda: toggle_clicker(), width=150, state='disabled')
-start_button.pack(pady=(0, 10))
-
-kill_button = ctk.CTkButton(main_frame, text='Kill', fg_color='#555555', command=lambda: kill_script(), width=150)
-kill_button.pack()
-
-made_by_label = ctk.CTkLabel(app, text='Made By Assmar00', text_color='white', font=('Consolas', 14, 'bold'))
-made_by_label.place(relx=0.5, y=5, anchor='n')
-
-# --- Funktionen ---
-def kill_script():
-    global alive
-    alive = False
-    app.destroy()
-    sys.exit()
-
-def get_pixel():
-    x = user.GetSystemMetrics(0) // 2
-    y = user.GetSystemMetrics(1) // 2
-    return gdi.GetPixel(dc, x, y)
-
-def change_pixel_color():
-    global search_color
-    search_color = get_pixel()
-    winsound.PlaySound('SystemAsterisk', winsound.SND_ALIAS)
-
-def check():
-    try:
-        if get_pixel() == search_color:
-            pyautogui.mouseDown()
-            time.sleep(random.uniform(0.06, 0.2))
-            pyautogui.mouseUp()
-        return
-    except pyautogui.FailSafeException:
-        return None
-
-def on_click(x, y, button, pressed):
-    global right_mouse_pressed
-    if button == Button.right:
-        right_mouse_pressed = pressed
-    return None
-
-mouse_listener = Listener(on_click=on_click)
-mouse_listener.start()
-
-def run_clicker():
-    while alive:
-        if running and right_mouse_pressed:
-            check()
-        time.sleep(click_delay)
-
-def toggle_clicker():
-    global running
-    running = not running
-    status_label.configure(text='Active' if running else 'Inactive',
-                           text_color='green' if running else 'red')
-    status_icon.configure(text_color='green' if running else 'red')
-    start_button.configure(text='Stop' if running else 'Start',
-                           fg_color='green' if running else 'red')
-
-def update_slider_label(value):
-    global click_delay
-    click_delay = float(value) / 1000.0
-    delay_label.configure(text=f'Verzögerung: {int(float(value))} ms')
-
-# --- Starte den Clicker-Thread ---
-threading.Thread(target=run_clicker, daemon=True).start()
-app.mainloop()
+TriggerbotGUI()
